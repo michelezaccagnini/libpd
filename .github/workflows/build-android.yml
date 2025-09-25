@@ -39,8 +39,8 @@ jobs:
           -DANDROID_PLATFORM=android-24 \
           -DBUILD_SHARED_LIBS=ON \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_FLAGS="-UHAVE_GLOB -UHAVE_GLOB_H -DNO_GLOB" \
-          -DCMAKE_C_FLAGS_RELEASE="-UHAVE_GLOB -UHAVE_GLOB_H -DNO_GLOB"
+          -DCMAKE_C_FLAGS="-UHAVE_GLOB -UHAVE_GLOB_H -DNO_GLOB -Wno-pointer-bool-conversion -Wno-error" \
+          -DCMAKE_C_FLAGS_RELEASE="-UHAVE_GLOB -UHAVE_GLOB_H -DNO_GLOB -Wno-pointer-bool-conversion -Wno-error"
 
     - name: Build
       run: cmake --build build-android-arm64 --config Release -j
