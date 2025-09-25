@@ -13,6 +13,8 @@ jobs:
 
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@v4
+        with:
+          version: 1.11.1
 
       - name: Setup Android NDK r25c
         uses: nttld/setup-ndk@v1
@@ -35,8 +37,8 @@ jobs:
             -DANDROID_PLATFORM=android-24 \
             -DBUILD_SHARED_LIBS=ON \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_FLAGS="-DHAVE_GLOB=0 -DHAVE_GLOB_H=0" \
-            -DCMAKE_C_FLAGS_RELEASE="-DHAVE_GLOB=0 -DHAVE_GLOB_H=0"
+            -DCMAKE_C_FLAGS="-DNO_GLOB" \
+            -DCMAKE_C_FLAGS_RELEASE="-DNO_GLOB"
 
       - name: Build
         run: cmake --build build-android-arm64 --config Release -j
