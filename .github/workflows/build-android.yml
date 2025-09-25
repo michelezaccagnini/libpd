@@ -24,6 +24,95 @@ jobs:
         ndk-version: r25c
         add-to-path: true
 
+    - name: Apply Android glob fix
+      run: |
+        cat > android-glob.patch << 'EOF'
+        --- a/pure-data/src/x_file.c
+        +++ b/pure-data/src/x_file.c
+        @@ -1127,6 +1127,10 @@ void file_glob_setup(void)
+         
+         /* ------------------------ file_glob ------------------------ */
+         
+        +#ifdef __ANDROID__
+        +#include <dirent.h>
+        +#include <fnmatch.h>
+        +#endif
+         static t_class *file_glob_class;
+         
+         typedef struct _file_glob
+        @@ -1134,6 +1138,75 @@ typedef struct _file_glob
+             t_object x_obj;
+         } t_file_glob;
+         
+        +#ifdef __ANDROID__
+        +/* Android-compatible glob implementation */
+        +static void file_glob_symbol(t_file_glob *x, t_symbol *s)
+        +{
+        +    const char *pattern = s->s_name;
+        +    char *dirname = ".";
+        +    char *basename_pattern = "*";
+        +    char dir_path[MAXPDSTRING];
+        +    char *last_slash;
+        +    DIR *dir;
+        +    struct dirent *entry;
+        +    int count = 0;
+        +    
+        +    /* Split pattern into directory and filename parts */
+        +    strncpy(dir_path, pattern, MAXPDSTRING-1);
+        +    dir_path[MAXPDSTRING-1] = 0;
+        +    
+        +    last_slash = strrchr(dir_path, '/');
+        +    if (last_slash) {
+        +        *last_slash = 0;
+        +        dirname = dir_path;
+        +        basename_pattern = last_slash + 1;
+        +    } else {
+        +        dirname = ".";
+        +        basename_pattern = dir_path;
+        +    }
+        +    
+        +    /* Open directory and match files */
+        +    if ((dir = opendir(dirname)) != NULL) {
+        +        while ((entry = readdir(dir)) != NULL) {
+        +            /* Skip hidden files unless explicitly requested */
+        +            if (entry->d_name[0] == '.' && basename_pattern[0] != '.') {
+        +                continue;
+        +            }
+        +            
+        +            /* Match against pattern */
+        +            if (fnmatch(basename_pattern, entry->d_name, 0) == 0) {
+        +                char full_path[MAXPDSTRING];
+        +                if (strcmp(dirname, ".") == 0) {
+        +                    snprintf(full_path, MAXPDSTRING, "%s", entry->d_name);
+        +                } else {
+        +                    snprintf(full_path, MAXPDSTRING, "%s/%s", dirname, entry->d_name);
+        +                }
+        +                outlet_symbol(x->x_obj.ob_outlet, gensym(full_path));
+        +                count++;
+        +            }
+        +        }
+        +        closedir(dir);
+        +    }
+        +    
+        +    /* Output bang to signal completion */
+        +    outlet_bang(x->x_obj.ob_outlet);
+        +}
+        +#else
+        +/* Original glob implementation for non-Android platforms */
+         static void file_glob_symbol(t_file_glob *x, t_symbol *s)
+         {
+             glob_t gg;
+        @@ -1168,6 +1241,7 @@ static void file_glob_symbol(t_file_glob *x, t_symbol *s)
+             globfree(&gg);
+             outlet_bang(x->x_obj.ob_outlet);
+         }
+        +#endif
+         
+         static void *file_glob_new(void)
+         {
+        EOF
+        git apply android-glob.patch
+
     - name: Show tool versions
       run: |
         cmake --version
@@ -38,9 +127,7 @@ jobs:
           -DANDROID_ABI=arm64-v8a \
           -DANDROID_PLATFORM=android-24 \
           -DBUILD_SHARED_LIBS=ON \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_FLAGS="-UHAVE_GLOB -UHAVE_GLOB_H -DNO_GLOB -DHAVE_GLOB=0 -DHAVE_GLOB_H=0 -Wno-pointer-bool-conversion -Wno-error -Wno-implicit-function-declaration" \
-          -DCMAKE_C_FLAGS_RELEASE="-UHAVE_GLOB -UHAVE_GLOB_H -DNO_GLOB -DHAVE_GLOB=0 -DHAVE_GLOB_H=0 -Wno-pointer-bool-conversion -Wno-error -Wno-implicit-function-declaration"
+          -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
       run: cmake --build build-android-arm64 --config Release -j
